@@ -7,8 +7,10 @@ img1 = rgb2gray(imread("file1.png"));
 img2 = rgb2gray(imread("file2.png"));
 
 %% Part 1
-SIFTfeatures1_1 = detectSIFTFeatures(img1, NumLayersInOctave=2);
-SIFTfeatures2_1 = detectSIFTFeatures(img2, NumLayersInOctave=2);
+%SIFT takes scale spaces to the next level. You take the original image, and generate progressively blurred out images. Then, you resize the original image to half size. And you generate blurred out images again. And you keep repeating.
+%Gaussian Blur
+SIFTfeatures1_1 = detectSIFTFeatures(img1, NumLayersInOctave=1);
+SIFTfeatures2_1 = detectSIFTFeatures(img2, NumLayersInOctave=1);
 
 figure();
 imshow(img1);
@@ -23,7 +25,8 @@ plot(SIFTfeatures2_1.selectStrongest(10))
 title("Image 2, 10 Points, 1 Layer in Octave")
 
 %%% Increase number of layers in octave to 5, higher number of layers means
-%%% that larger featuresin the image are identified
+%%% that larger features in the image are identified since an increased
+%%% Gaussian blur is applied to the image 
 SIFTfeatures1_5 = detectSIFTFeatures(img1, NumLayersInOctave=5);
 SIFTfeatures2_5 = detectSIFTFeatures(img2, NumLayersInOctave=5);
 
@@ -94,25 +97,33 @@ end
 
 uniqueMatch1to2_true = matchFeatures(processedFeatures1_3, processedFeatures2_3, 'Unique', true, 'MatchThreshold', 100, 'MaxRatio', 1.0, 'Metric', 'SSD');
 
+%geometric transformation between two images by mapping the inliers in the matched points from one image matchedPoints1 to the inliers in the matched points from another image matchedPoints2.
 matchedPoints1 = valid_points1(uniqueMatch1to2(:,1),:);
 matchedPoints2 = valid_points2(uniqueMatch1to2(:,2),:);
-figure(); 
-showMatchedFeatures(img1,img2,matchedPoints1,matchedPoints2,'montage');
-title("Unique correspondences using manual matching")
-
+[tform, inlier] = estimateGeometricTransform2D(matchedPoints1,matchedPoints2,'projective');
 
 matchedPoints1_true = valid_points1(uniqueMatch1to2_true(:,1),:);
 matchedPoints2_true = valid_points2(uniqueMatch1to2_true(:,2),:);
+[tform_true, inlier_true] = estimateGeometricTransform2D(matchedPoints1_true,matchedPoints2_true,'projective');
+
+matchedPoints1_inlier = matchedPoints1(inlier,:);
+matchedPoints2_inllier = matchedPoints2(inlier,:);
 figure(); 
-showMatchedFeatures(img1,img2,matchedPoints1_true,matchedPoints2_true,'montage');
+showMatchedFeatures(img1,img2,matchedPoints1_inlier,matchedPoints2_inllier);
+title("Unique correspondences using manual matching")
+
+
+matchedPoints1_true_inlier = matchedPoints1_true(inlier_true,:);
+matchedPoints2_true_inllier = matchedPoints2_true(inlier_true,:);
+figure();
+showMatchedFeatures(img1,img2,matchedPoints1_true_inlier,matchedPoints2_true_inllier);
 title("Unique correspondences using matchFeatures")
 
-tform = estimateGeometricTransform2D(matchedPoints1_true,matchedPoints2_true,'projective')
 
 imageSize = [size(img1, 1), size(img1, 2)];
-intrinsics = cameraIntrinsics([517.3 516.5],[318.6 255.3],imageSize)
-cameraParams = cameraParameters('IntrinsicMatrix', intrinsics.IntrinsicMatrix)
-[relativeOrientation,relativeLocation] = relativeCameraPose(tform,cameraParams,matchedPoints1_true,matchedPoints2_true)
+intrinsics = cameraIntrinsics([517.3 516.5],[318.6 255.3],[480 640]);
+cameraParams = cameraParameters('IntrinsicMatrix', intrinsics.IntrinsicMatrix);
+[relativeOrientation,relativeLocation] = relativeCameraPose(tform,cameraParams,matchedPoints1,matchedPoints2);
 
 
 toc
